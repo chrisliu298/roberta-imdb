@@ -25,8 +25,6 @@ epochs = 5
 learning_rate = 1e-6
 seed = 42
 model_name = "distilroberta-base"
-
-# Settings
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -108,12 +106,12 @@ if __name__ == "__main__":
         optimizer, num_training_steps=total_steps, num_warmup_steps=0
     )
 
-    # Finetune the model
     train_stats = []
     total_time = time.time()
 
+    # Finetune the model
     for epoch in range(0, epochs):
-        print(f"========== Epochs {epoch + 1} ==========")
+        print(f"========== Epoch {epoch + 1} ==========")
         # Train
         now = time.time()
         epoch_training_loss = 0
@@ -140,13 +138,13 @@ if __name__ == "__main__":
         train_time = format_time(time.time() - now)
         print("\nTrain loss: {0:.4f}".format(avg_train_loss))
         print("Training time: {:}".format(train_time))
-
         now = time.time()
+
+        # Validate
         model.eval()
         epoch_eval_acc = 0
         epochs_eval_loss = 0
         eval_steps = 0
-
         for batch in tqdm(valid_dataloader, position=0, file=sys.stdout, leave=True):
             batch_input_ids = batch[0].to(device)
             batch_attention_masks = batch[1].to(device)
@@ -190,6 +188,13 @@ if __name__ == "__main__":
         )
         print()
 
+    print("\nTrain stats")
+    pd.set_option('precision', 4)
+    df_stats = pd.DataFrame(data=train_stats)
+    df_stats = df_stats.set_index('Epoch')
+    print(df_stats)
+
+    # Test
     test = pd.read_csv("testData.tsv", delimiter="\t")
     print("Number of test sentences: {:,}\n".format(test.shape[0]))
     reviews = test["review"]
@@ -220,31 +225,29 @@ if __name__ == "__main__":
         prediction_data, sampler=prediction_sampler, batch_size=batch_size
     )
 
+    # Predict test data
     model.eval()
-
     predictions, true_labels = [], []
-
-    for batch in prediction_dataloader:
+    for batch in tqdm(prediction_dataloader, position=0, file=sys.stdout, leave=True):
         batch = tuple(t.to(device) for t in batch)
         b_input_ids, b_input_mask, b_labels = batch
         with torch.no_grad():
-            outputs = model(
-                b_input_ids, token_type_ids=None, attention_mask=b_input_mask
-            )
+            outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
         logits = outputs[0]
         logits = logits.detach().cpu().numpy()
         label_ids = b_labels.to("cpu").numpy()
         predictions.append(logits)
         true_labels.append(label_ids)
 
+    # Make submission file
     pred = []
     for i in predictions:
         pred += list(np.argmax(i, axis=1))
 
-    data = {"id": df["id"], "sentiment": pred}
+    data = {"id": test["id"], "sentiment": pred}
     submission = pd.DataFrame(data)
-
     submission.to_csv("submission.csv", index=False)
 
-    model.save_pretrained("/content/drive/My Drive/models/roberta")
-    tokenizer.save_pretrained("/content/drive/My Drive/models/roberta")
+    # Save the model and its tokenier
+    # model.save_pretrained("/content/drive/My Drive/models/roberta")
+    # tokenizer.save_pretrained("/content/drive/My Drive/models/roberta")
