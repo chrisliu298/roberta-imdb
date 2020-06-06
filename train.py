@@ -16,7 +16,6 @@ from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
 from tqdm import tqdm
 import warnings
-
 warnings.filterwarnings("ignore")
 
 
@@ -24,8 +23,8 @@ warnings.filterwarnings("ignore")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 max_len = 512
 batch_size = 4
-epochs = 10
-learning_rate = 5e-7
+epochs = 4
+learning_rate = 1e-6
 seed = 42
 model_name = "roberta-large"
 random.seed(seed)
@@ -51,18 +50,14 @@ def flat_accuracy(preds, labels):
     return np.sum(pred_flat == labels_flat) / len(labels_flat)
 
 
-def get_data(filename):
-    """
-    Return the training sentences adn labels
-    """
-    train = pd.read_csv(filename, delimiter="\t")
-    return (train["review"], train["sentiment"])
+def main():
+    # Read data
+    train = pd.read_csv("dataset/labeledTrainData.tsv", delimiter="\t")
+    imdb_reviews = train["review"]
+    sentiments = train["sentiment"]
+    # Tokenize the text
+    tokenizer = RobertaTokenizer.from_pretrained(model_name, do_lower_case=True)
 
-
-def tokenize_data(imdb_reviews, tokenizer):
-    """
-    Return the input ids and attention masks
-    """
     input_ids = []
     attention_masks = []
 
@@ -78,21 +73,16 @@ def tokenize_data(imdb_reviews, tokenizer):
         input_ids.append(encoded_dict["input_ids"])
         attention_masks.append(encoded_dict["attention_mask"])
 
-    return (input_ids, attention_masks)
-
-
-def main():
-    # Preprocess data
-    imdb_reviews, sentiments = get_data("labeledTrainData.tsv")
-    tokenizer = RobertaTokenizer.from_pretrained(model_name, do_lower_case=True)
-    input_ids, attention_masks = tokenize_data(imdb_reviews, tokenizer)
+    input_ids = torch.cat(input_ids, dim=0)
+    attention_masks = torch.cat(attention_masks, dim=0)
     labels = torch.tensor(sentiments)
 
-    # Prepare data pipeline
+    # Make data loader
     dataset = TensorDataset(input_ids, attention_masks, labels)
     train_size = int(0.90 * len(dataset))
     valid_size = len(dataset) - train_size
     train_dataset, valid_dataset = random_split(dataset, [train_size, valid_size])
+
     train_dataloader = DataLoader(
         train_dataset, sampler=RandomSampler(train_dataset), batch_size=batch_size
     )
@@ -105,7 +95,7 @@ def main():
     model = RobertaForSequenceClassification.from_pretrained(
         model_name, num_labels=2, output_attentions=False, output_hidden_states=False
     )
-    _ = model.to(device)
+    model.to(device)
 
     optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
 
@@ -113,10 +103,10 @@ def main():
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_training_steps=total_steps, num_warmup_steps=0
     )
-
-    # Train
     train_stats = []
     total_time = time.time()
+
+    # Finetune the model
     for epoch in range(0, epochs):
         print(f"========== Epoch {epoch + 1} ==========")
         # Train
@@ -185,9 +175,6 @@ def main():
                 "Validation Time": valid_time,
             }
         )
-
-        print()
-        print("Epoch completed.")
         print(
             "Total training took {:} (hh:mm:ss)".format(
                 format_time(time.time() - total_time)
@@ -195,12 +182,8 @@ def main():
         )
         print()
 
-    # Save the model and the tokenizer
-    model.save_pretrained("/model")
-    tokenizer.save_pretrained("/model")
-
     # Test
-    test = pd.read_csv("/dataset/testData.tsv", delimiter="\t")
+    test = pd.read_csv("testData.tsv", delimiter="\t")
     print("Number of test sentences: {:,}\n".format(test.shape[0]))
     reviews = test["review"]
     input_ids = []
@@ -222,7 +205,7 @@ def main():
     attention_masks = torch.cat(attention_masks, dim=0)
     labels = torch.tensor(labels)
 
-    batch_size = 64
+    batch_size = 128
 
     prediction_data = TensorDataset(input_ids, attention_masks, labels)
     prediction_sampler = SequentialSampler(prediction_data)
@@ -253,6 +236,7 @@ def main():
     submission = pd.DataFrame(data)
     submission.to_csv("submission.csv", index=False)
 
-
-if __name__ == "__main__":
-    main()
+    # Save the model and its tokenier
+    # model.save_pretrained("/content/drive/My Drive/roberta-large-imdb")
+    # tokenizer.save_pretrained("/content/drive/My Drive/roberta-large-imdb")
+    
