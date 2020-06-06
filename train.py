@@ -16,21 +16,8 @@ from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
 from tqdm import tqdm
 import warnings
+
 warnings.filterwarnings("ignore")
-
-
-# Parameters
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-max_len = 512
-batch_size = 4
-epochs = 4
-learning_rate = 1e-6
-seed = 42
-model_name = "roberta-large"
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
 
 
 def format_time(elapsed):
@@ -51,6 +38,19 @@ def flat_accuracy(preds, labels):
 
 
 def main():
+    # Parameters
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    max_len = 512
+    batch_size = 4
+    epochs = 4
+    learning_rate = 1e-6
+    seed = 42
+    model_name = "roberta-large"
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
     # Read data
     train = pd.read_csv("dataset/labeledTrainData.tsv", delimiter="\t")
     imdb_reviews = train["review"]
@@ -183,7 +183,7 @@ def main():
         print()
 
     # Test
-    test = pd.read_csv("testData.tsv", delimiter="\t")
+    test = pd.read_csv("dataset/testData.tsv", delimiter="\t")
     print("Number of test sentences: {:,}\n".format(test.shape[0]))
     reviews = test["review"]
     input_ids = []
@@ -220,7 +220,9 @@ def main():
         batch = tuple(t.to(device) for t in batch)
         b_input_ids, b_input_mask, b_labels = batch
         with torch.no_grad():
-            outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
+            outputs = model(
+                b_input_ids, token_type_ids=None, attention_mask=b_input_mask
+            )
         logits = outputs[0]
         logits = logits.detach().cpu().numpy()
         label_ids = b_labels.to("cpu").numpy()
@@ -239,4 +241,7 @@ def main():
     # Save the model and its tokenier
     # model.save_pretrained("/content/drive/My Drive/roberta-large-imdb")
     # tokenizer.save_pretrained("/content/drive/My Drive/roberta-large-imdb")
-    
+
+
+if __name__ == "__main__":
+    main()
