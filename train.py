@@ -171,8 +171,8 @@ def main():
                 "Train loss": avg_train_loss,
                 "Valid loss": avg_valid_loss,
                 "Valid acc": avg_valid_acc,
-                "Train Time": train_time,
-                "Validation Time": valid_time,
+                "Train time": train_time,
+                "Validation time": valid_time,
             }
         )
         print(
