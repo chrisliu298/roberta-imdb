@@ -4,7 +4,7 @@ We used [RoBERTa](https://arxiv.org/abs/1907.11692) to do the sentiment analysis
 
 ## Getting Started
 
-`train.py` preprocesses the data, trains the model, and generates the prediction. The `model/` directory is empty because it is where is saved model should be at.
+`train.py` preprocesses the data, trains the model, and generates the prediction. The `model/` and `data/` directories are empty because it is where the dataset and the saved model should be in. 
 
 
 ## Credit
